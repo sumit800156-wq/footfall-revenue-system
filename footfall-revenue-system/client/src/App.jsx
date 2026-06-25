@@ -1,726 +1,598 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Legend,
+} from "recharts";
+import "bootstrap/dist/css/bootstrap.min.css";
 
-export default function App() {
-  // =========================
-  // CONFIG
-  // =========================
+function App() {
+  /* =========================
+     EDITABLE ALERT THRESHOLDS
+  ========================= */
+  const FOOTFALL_THRESHOLD = 100;
+  const COST_PER_VISITOR_THRESHOLD = 80;
+  const LOW_REVENUE_THRESHOLD = 20000;
+
+  /* =========================
+     DEMO USERS
+  ========================= */
+  const USERS = {
+    admin: {
+      email: "admin@mannat.com",
+      password: "123456",
+      role: "admin",
+      name: "Admin",
+    },
+    staff: {
+      email: "staff@mannat.com",
+      password: "123456",
+      role: "staff",
+      name: "Staff",
+    },
+  };
+
   const OUTLETS = [
     "Murthal",
     "Karnal",
-    "Jalandhar Hub",
-    "Ambala",
-    "Kurukshetra",
-    "Ludhiana",
     "Panipat",
+    "Kurukshetra",
+    "Ambala",
     "Sonipat",
-    "Delhi Border",
-    "Chandigarh Highway",
   ];
 
-  const USERS = [
-    { username: "admin", password: "1234", role: "admin", outlet: null },
-    { username: "murthal", password: "1234", role: "staff", outlet: "Murthal" },
-    { username: "karnal", password: "1234", role: "staff", outlet: "Karnal" },
-    { username: "jalandhar", password: "1234", role: "staff", outlet: "Jalandhar Hub" },
-    { username: "ambala", password: "1234", role: "staff", outlet: "Ambala" },
-    { username: "kurukshetra", password: "1234", role: "staff", outlet: "Kurukshetra" },
-    { username: "ludhiana", password: "1234", role: "staff", outlet: "Ludhiana" },
-    { username: "panipat", password: "1234", role: "staff", outlet: "Panipat" },
-    { username: "sonipat", password: "1234", role: "staff", outlet: "Sonipat" },
-    { username: "delhi", password: "1234", role: "staff", outlet: "Delhi Border" },
-    { username: "chandigarh", password: "1234", role: "staff", outlet: "Chandigarh Highway" },
-  ];
-
-  const STORAGE_KEYS = {
-    entries: "mannat_entries_v2",
-    user: "mannat_logged_user_v2",
-  };
-
-  // =========================
-  // HELPERS
-  // =========================
-  const todayDate = () => {
-    const d = new Date();
-    return d.toISOString().split("T")[0];
-  };
-
-  const toNumber = (value) => {
-    if (value === "" || value === null || value === undefined) return 0;
-    const n = Number(value);
-    return isNaN(n) ? 0 : n;
-  };
-
-  const formatCurrency = (value) =>
-    `₹${Number(value || 0).toLocaleString("en-IN")}`;
-
-  const formatCurrencyShort = (value) =>
-    `₹${Number(value || 0).toLocaleString("en-IN", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    })}`;
-
-  const formatDateDisplay = (dateStr) => {
-    if (!dateStr) return "-";
-    return dateStr;
-  };
-
-  // =========================
-  // LOGIN STATE
-  // =========================
-  const [loginForm, setLoginForm] = useState({
-    username: "",
-    password: "",
-  });
-  const [loginError, setLoginError] = useState("");
+  /* =========================
+     AUTH STATE
+  ========================= */
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    localStorage.getItem("isLoggedIn") === "true"
+  );
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.user);
+    const saved = localStorage.getItem("currentUser");
     return saved ? JSON.parse(saved) : null;
   });
 
-  // =========================
-  // DATA STATE
-  // =========================
-  const [entries, setEntries] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.entries);
-    return saved ? JSON.parse(saved) : [];
+  const [loginForm, setLoginForm] = useState({
+    email: "",
+    password: "",
+    role: "admin",
   });
 
-  // =========================
-  // FILTERS
-  // =========================
-  const [selectedOutlet, setSelectedOutlet] = useState("All Outlets");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [loginError, setLoginError] = useState("");
 
-  // =========================
-  // FORM STATE
-  // =========================
-  const getInitialForm = (user = currentUser) => ({
-    id: null,
-    outlet:
-      user?.role === "staff" && user?.outlet ? user.outlet : "",
-    date: todayDate(),
+  /* =========================
+     ENTRIES STATE
+  ========================= */
+  const [entries, setEntries] = useState(() => {
+    const saved = localStorage.getItem("entries");
+    return saved
+      ? JSON.parse(saved)
+      : [
+          {
+            id: 1,
+            outlet: "Murthal",
+            date: "2026-06-21",
+            footfall: 189,
+            driverCount: 35,
+            dineInRevenue: 30000,
+            parcelRevenue: 20000,
+            roomRevenue: 12000,
+            otherRevenue: 5000,
+            marketingSpend: 5000,
+          },
+        ];
+  });
+
+  /* =========================
+     FILTERS
+  ========================= */
+  const [filterOutlet, setFilterOutlet] = useState("All");
+  const [dateFilter, setDateFilter] = useState("All");
+
+  /* =========================
+     ENTRY FORM
+  ========================= */
+  const [form, setForm] = useState({
+    outlet: "",
+    date: "",
     footfall: "",
-    drivers: "",
-    restaurantRevenue: "",
+    driverCount: "",
+    dineInRevenue: "",
+    parcelRevenue: "",
     roomRevenue: "",
     otherRevenue: "",
-    marketingExpense: "",
-    remarks: "",
+    marketingSpend: "",
   });
 
-  const [form, setForm] = useState(getInitialForm(currentUser));
-  const [formError, setFormError] = useState("");
-  const [isEditMode, setIsEditMode] = useState(false);
-
-  // =========================
-  // LOCAL STORAGE SAVE
-  // =========================
+  /* =========================
+     LOCAL STORAGE
+  ========================= */
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.entries, JSON.stringify(entries));
+    localStorage.setItem("entries", JSON.stringify(entries));
   }, [entries]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.user);
-    }
-  }, [currentUser]);
+    localStorage.setItem("isLoggedIn", isLoggedIn);
+  }, [isLoggedIn]);
 
   useEffect(() => {
-    setForm(getInitialForm(currentUser));
-    setSelectedOutlet(
-      currentUser?.role === "staff" && currentUser?.outlet
-        ? currentUser.outlet
-        : "All Outlets"
-    );
-    setFromDate("");
-    setToDate("");
+    if (currentUser) {
+      localStorage.setItem("currentUser", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("currentUser");
+    }
   }, [currentUser]);
 
-  // =========================
-  // LOGIN HANDLERS
-  // =========================
-  const handleLogin = (e) => {
-    e.preventDefault();
+  /* =========================
+     HELPERS
+  ========================= */
+  const getTotalRevenue = (item) =>
+    Number(item.dineInRevenue || 0) +
+    Number(item.parcelRevenue || 0) +
+    Number(item.roomRevenue || 0) +
+    Number(item.otherRevenue || 0);
+
+  /* =========================
+     LOGIN / LOGOUT
+  ========================= */
+  const handleLogin = () => {
     setLoginError("");
+    const selectedUser = USERS[loginForm.role];
 
-    const user = USERS.find(
-      (u) =>
-        u.username.trim().toLowerCase() === loginForm.username.trim().toLowerCase() &&
-        u.password === loginForm.password
-    );
-
-    if (!user) {
-      setLoginError("Invalid username or password");
-      return;
+    if (
+      loginForm.email === selectedUser.email &&
+      loginForm.password === selectedUser.password
+    ) {
+      setIsLoggedIn(true);
+      setCurrentUser(selectedUser);
+      setLoginForm({ email: "", password: "", role: "admin" });
+    } else {
+      setLoginError("Invalid credentials");
     }
-
-    setCurrentUser(user);
-    setLoginForm({ username: "", password: "" });
   };
 
   const handleLogout = () => {
+    setIsLoggedIn(false);
     setCurrentUser(null);
-    setLoginForm({ username: "", password: "" });
-    setLoginError("");
+    localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("currentUser");
   };
 
-  // =========================
-  // FILTERED ENTRIES
-  // =========================
-  const visibleEntries = useMemo(() => {
-    let data = [...entries];
+  /* =========================
+     DATE FILTER LOGIC
+  ========================= */
+  const isWithinDateFilter = (entryDate) => {
+    if (dateFilter === "All") return true;
 
-    // staff sees only own outlet
-    if (currentUser?.role === "staff") {
-      data = data.filter((e) => e.outlet === currentUser.outlet);
+    const today = new Date();
+    const entry = new Date(entryDate);
+
+    today.setHours(0, 0, 0, 0);
+    entry.setHours(0, 0, 0, 0);
+
+    if (dateFilter === "Today") {
+      return entry.getTime() === today.getTime();
     }
 
-    // outlet filter
-    if (selectedOutlet !== "All Outlets") {
-      data = data.filter((e) => e.outlet === selectedOutlet);
+    if (dateFilter === "Last7Days") {
+      const last7 = new Date(today);
+      last7.setDate(today.getDate() - 6);
+      return entry >= last7 && entry <= today;
     }
 
-    // date range filter
-    if (fromDate) {
-      data = data.filter((e) => e.date >= fromDate);
-    }
-    if (toDate) {
-      data = data.filter((e) => e.date <= toDate);
+    if (dateFilter === "Last30Days") {
+      const last30 = new Date(today);
+      last30.setDate(today.getDate() - 29);
+      return entry >= last30 && entry <= today;
     }
 
-    return data.sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [entries, currentUser, selectedOutlet, fromDate, toDate]);
+    return true;
+  };
 
-  // =========================
-  // KPIs
-  // =========================
-  const summary = useMemo(() => {
-    const totalRevenue = visibleEntries.reduce(
-      (sum, e) => sum + (e.totalRevenue || 0),
-      0
-    );
-    const totalFootfall = visibleEntries.reduce(
-      (sum, e) => sum + (e.footfall || 0),
-      0
-    );
-    const totalDrivers = visibleEntries.reduce(
-      (sum, e) => sum + (e.drivers || 0),
-      0
-    );
-    const totalMarketing = visibleEntries.reduce(
-      (sum, e) => sum + (e.marketingExpense || 0),
-      0
-    );
-    const totalEntries = visibleEntries.length;
-    const avgRevenuePerCustomer =
-      totalFootfall > 0 ? totalRevenue / totalFootfall : 0;
+  /* =========================
+     FILTERED ENTRIES
+  ========================= */
+  const filteredEntries = useMemo(() => {
+    return entries.filter((item) => {
+      const outletMatch =
+        filterOutlet === "All" ? true : item.outlet === filterOutlet;
+      const dateMatch = isWithinDateFilter(item.date);
+      return outletMatch && dateMatch;
+    });
+  }, [entries, filterOutlet, dateFilter]);
 
-    return {
-      totalRevenue,
-      totalFootfall,
-      totalDrivers,
-      totalMarketing,
-      totalEntries,
-      avgRevenuePerCustomer,
+  /* =========================
+     ADD ENTRY
+  ========================= */
+  const addEntry = () => {
+    if (
+      !form.outlet ||
+      !form.date ||
+      form.footfall === "" ||
+      form.driverCount === "" ||
+      form.dineInRevenue === "" ||
+      form.parcelRevenue === "" ||
+      form.roomRevenue === "" ||
+      form.otherRevenue === "" ||
+      form.marketingSpend === ""
+    ) {
+      alert("Please fill all fields");
+      return;
+    }
+
+    const newEntry = {
+      id: Date.now(),
+      outlet: form.outlet,
+      date: form.date,
+      footfall: Number(form.footfall),
+      driverCount: Number(form.driverCount),
+      dineInRevenue: Number(form.dineInRevenue),
+      parcelRevenue: Number(form.parcelRevenue),
+      roomRevenue: Number(form.roomRevenue),
+      otherRevenue: Number(form.otherRevenue),
+      marketingSpend: Number(form.marketingSpend),
     };
-  }, [visibleEntries]);
 
-  // =========================
-  // TOP OUTLET
-  // =========================
-  const topOutlet = useMemo(() => {
-    if (!visibleEntries.length) return null;
+    setEntries([newEntry, ...entries]);
 
-    const outletMap = {};
-    visibleEntries.forEach((e) => {
-      if (!outletMap[e.outlet]) {
-        outletMap[e.outlet] = 0;
-      }
-      outletMap[e.outlet] += e.totalRevenue || 0;
+    setForm({
+      outlet: "",
+      date: "",
+      footfall: "",
+      driverCount: "",
+      dineInRevenue: "",
+      parcelRevenue: "",
+      roomRevenue: "",
+      otherRevenue: "",
+      marketingSpend: "",
     });
+  };
 
-    const sorted = Object.entries(outletMap).sort((a, b) => b[1] - a[1]);
-    return sorted.length
-      ? { outlet: sorted[0][0], revenue: sorted[0][1] }
-      : null;
-  }, [visibleEntries]);
+  /* =========================
+     DELETE ENTRY
+  ========================= */
+  const deleteEntry = (id) => {
+    const ok = window.confirm("Delete this entry?");
+    if (!ok) return;
+    setEntries(entries.filter((e) => e.id !== id));
+  };
 
-  // =========================
-  // ALERTS
-  // =========================
-  const alerts = useMemo(() => {
-    const list = [];
+  /* =========================
+     KPI CALCULATIONS
+  ========================= */
+  const totalRevenue = filteredEntries.reduce(
+    (sum, item) => sum + getTotalRevenue(item),
+    0
+  );
 
-    visibleEntries.forEach((e) => {
-      const costPerVisitor =
-        e.footfall > 0 ? e.marketingExpense / e.footfall : 0;
+  const totalFootfall = filteredEntries.reduce(
+    (sum, item) => sum + Number(item.footfall || 0),
+    0
+  );
 
-      if (e.footfall > 0 && e.footfall < 100) {
-        list.push({
-          type: "Low Footfall",
-          message: `${e.outlet}: Footfall is low (${e.footfall})`,
-        });
-      }
+  const totalMarketingSpend = filteredEntries.reduce(
+    (sum, item) => sum + Number(item.marketingSpend || 0),
+    0
+  );
 
-      if (e.marketingExpense > 5000) {
-        list.push({
-          type: "High Marketing Spend",
-          message: `${e.outlet}: Marketing expense is high (${formatCurrencyShort(
-            e.marketingExpense
-          )})`,
-        });
-      }
+  const totalDrivers = filteredEntries.reduce(
+    (sum, item) => sum + Number(item.driverCount || 0),
+    0
+  );
 
-      if (e.totalRevenue < 10000) {
-        list.push({
-          type: "Low Revenue",
-          message: `${e.outlet}: Revenue is low (${formatCurrencyShort(
-            e.totalRevenue
-          )})`,
-        });
-      }
+  const avgRevenuePerCustomer =
+    totalFootfall > 0 ? (totalRevenue / totalFootfall).toFixed(2) : "0.00";
 
-      if (costPerVisitor > 80) {
-        list.push({
-          type: "High Cost / Visitor",
-          message: `${e.outlet}: Cost per visitor is high (${formatCurrencyShort(
-            costPerVisitor
-          )})`,
-        });
-      }
-    });
+  const costPerVisitor =
+    totalFootfall > 0
+      ? (totalMarketingSpend / totalFootfall).toFixed(2)
+      : "0.00";
 
-    return list;
-  }, [visibleEntries]);
+  const totalEntries = filteredEntries.length;
 
-  // =========================
-  // OUTLET PERFORMANCE
-  // =========================
-  const outletPerformance = useMemo(() => {
-    const map = {};
+  /* =========================
+     OUTLET SUMMARY
+  ========================= */
+  const outletSummary = useMemo(() => {
+    const summary = {};
 
-    visibleEntries.forEach((e) => {
-      if (!map[e.outlet]) {
-        map[e.outlet] = {
-          outlet: e.outlet,
-          revenue: 0,
+    filteredEntries.forEach((item) => {
+      if (!summary[item.outlet]) {
+        summary[item.outlet] = {
+          outlet: item.outlet,
           footfall: 0,
-          drivers: 0,
-          marketing: 0,
+          driverCount: 0,
+          dineInRevenue: 0,
+          parcelRevenue: 0,
+          roomRevenue: 0,
+          otherRevenue: 0,
+          totalRevenue: 0,
+          marketingSpend: 0,
         };
       }
 
-      map[e.outlet].revenue += e.totalRevenue || 0;
-      map[e.outlet].footfall += e.footfall || 0;
-      map[e.outlet].drivers += e.drivers || 0;
-      map[e.outlet].marketing += e.marketingExpense || 0;
+      summary[item.outlet].footfall += Number(item.footfall || 0);
+      summary[item.outlet].driverCount += Number(item.driverCount || 0);
+      summary[item.outlet].dineInRevenue += Number(item.dineInRevenue || 0);
+      summary[item.outlet].parcelRevenue += Number(item.parcelRevenue || 0);
+      summary[item.outlet].roomRevenue += Number(item.roomRevenue || 0);
+      summary[item.outlet].otherRevenue += Number(item.otherRevenue || 0);
+      summary[item.outlet].marketingSpend += Number(item.marketingSpend || 0);
+      summary[item.outlet].totalRevenue += getTotalRevenue(item);
     });
 
-    return Object.values(map).sort((a, b) => b.revenue - a.revenue);
-  }, [visibleEntries]);
-
-  // =========================
-  // FORM HANDLERS
-  // =========================
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
+    return Object.values(summary).map((item) => ({
+      ...item,
+      avgRevenuePerCustomer:
+        item.footfall > 0
+          ? (item.totalRevenue / item.footfall).toFixed(2)
+          : "0.00",
+      costPerVisitor:
+        item.footfall > 0
+          ? (item.marketingSpend / item.footfall).toFixed(2)
+          : "0.00",
     }));
-  };
+  }, [filteredEntries]);
 
-  const resetForm = () => {
-    setForm(getInitialForm(currentUser));
-    setIsEditMode(false);
-    setFormError("");
-  };
+  const topOutlet =
+    outletSummary.length > 0
+      ? [...outletSummary].sort((a, b) => b.totalRevenue - a.totalRevenue)[0]
+      : null;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setFormError("");
+  const lowestOutlet =
+    outletSummary.length > 0
+      ? [...outletSummary].sort((a, b) => a.totalRevenue - b.totalRevenue)[0]
+      : null;
 
-    // validation
-    if (!form.outlet) {
-      setFormError("Please select an outlet");
-      return;
-    }
-    if (!form.date) {
-      setFormError("Please select a date");
-      return;
-    }
+  /* =========================
+     ALERTS
+  ========================= */
+  const alerts = [];
 
-    const footfall = toNumber(form.footfall);
-    const drivers = toNumber(form.drivers);
-    const restaurantRevenue = toNumber(form.restaurantRevenue);
-    const roomRevenue = toNumber(form.roomRevenue);
-    const otherRevenue = toNumber(form.otherRevenue);
-    const marketingExpense = toNumber(form.marketingExpense);
-
-    // कम से कम कुछ useful value enter honi chahiye
-    const hasSomeData =
-      footfall > 0 ||
-      drivers > 0 ||
-      restaurantRevenue > 0 ||
-      roomRevenue > 0 ||
-      otherRevenue > 0 ||
-      marketingExpense > 0 ||
-      form.remarks.trim() !== "";
-
-    if (!hasSomeData) {
-      setFormError("Please enter at least one value before saving.");
-      return;
-    }
-
-    const totalRevenue =
-      restaurantRevenue + roomRevenue + otherRevenue;
-
-    const payload = {
-      id: isEditMode && form.id ? form.id : Date.now(),
-      outlet: form.outlet,
-      date: form.date,
-      footfall,
-      drivers,
-      restaurantRevenue,
-      roomRevenue,
-      otherRevenue,
-      marketingExpense,
-      totalRevenue,
-      remarks: form.remarks.trim(),
-      createdBy: currentUser?.username || "admin",
-      role: currentUser?.role || "admin",
-    };
-
-    if (isEditMode) {
-      setEntries((prev) =>
-        prev.map((item) => (item.id === form.id ? payload : item))
+  outletSummary.forEach((item) => {
+    if (item.footfall < FOOTFALL_THRESHOLD) {
+      alerts.push(
+        `⚠ ${item.outlet}: Footfall is low (${item.footfall}) | Threshold: ${FOOTFALL_THRESHOLD}`
       );
-    } else {
-      setEntries((prev) => [payload, ...prev]);
     }
 
-    resetForm();
-  };
-
-  const handleEdit = (entry) => {
-    // staff can only edit own outlet
-    if (
-      currentUser?.role === "staff" &&
-      entry.outlet !== currentUser.outlet
-    ) {
-      return;
+    if (Number(item.costPerVisitor) > COST_PER_VISITOR_THRESHOLD) {
+      alerts.push(
+        `⚠ ${item.outlet}: Cost per visitor is high (₹${item.costPerVisitor}) | Threshold: ₹${COST_PER_VISITOR_THRESHOLD}`
+      );
     }
 
-    setForm({
-      id: entry.id,
-      outlet: entry.outlet,
-      date: entry.date,
-      footfall: entry.footfall,
-      drivers: entry.drivers,
-      restaurantRevenue: entry.restaurantRevenue,
-      roomRevenue: entry.roomRevenue,
-      otherRevenue: entry.otherRevenue,
-      marketingExpense: entry.marketingExpense,
-      remarks: entry.remarks || "",
+    if (item.totalRevenue < LOW_REVENUE_THRESHOLD) {
+      alerts.push(
+        `⚠ ${item.outlet}: Revenue is low (₹${item.totalRevenue}) | Threshold: ₹${LOW_REVENUE_THRESHOLD}`
+      );
+    }
+  });
+
+  /* =========================
+     CHART DATA
+  ========================= */
+  const outletChartData = outletSummary.map((item) => ({
+    outlet: item.outlet,
+    revenue: item.totalRevenue,
+    footfall: item.footfall,
+    marketingSpend: item.marketingSpend,
+  }));
+
+  const dailyChartData = useMemo(() => {
+    const grouped = {};
+
+    filteredEntries.forEach((item) => {
+      if (!grouped[item.date]) {
+        grouped[item.date] = {
+          date: item.date,
+          revenue: 0,
+          footfall: 0,
+          marketingSpend: 0,
+        };
+      }
+
+      grouped[item.date].revenue += getTotalRevenue(item);
+      grouped[item.date].footfall += Number(item.footfall || 0);
+      grouped[item.date].marketingSpend += Number(item.marketingSpend || 0);
     });
 
-    setIsEditMode(true);
-    setFormError("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+    return Object.values(grouped).sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
+    );
+  }, [filteredEntries]);
 
-  const handleDelete = (id) => {
-    const target = entries.find((e) => e.id === id);
-    if (!target) return;
-
-    if (
-      currentUser?.role === "staff" &&
-      target.outlet !== currentUser.outlet
-    ) {
+  /* =========================
+     CSV EXPORT
+  ========================= */
+  const exportCSV = () => {
+    if (!filteredEntries.length) {
+      alert("No data to export");
       return;
     }
 
-    const ok = window.confirm("Are you sure you want to delete this entry?");
-    if (!ok) return;
+    const csv =
+      "Outlet,Date,Footfall,Driver Count,Dine-in Revenue,Parcel Revenue,Room Revenue,Other Revenue,Marketing Spend,Total Revenue,Cost Per Visitor\n" +
+      filteredEntries
+        .map((e) => {
+          const totalRev = getTotalRevenue(e);
+          const cpv =
+            e.footfall > 0 ? (e.marketingSpend / e.footfall).toFixed(2) : 0;
 
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-
-    if (isEditMode && form.id === id) {
-      resetForm();
-    }
-  };
-
-  // =========================
-  // CSV EXPORT
-  // =========================
-  const handleExportCSV = () => {
-    if (!visibleEntries.length) {
-      alert("No data available to export.");
-      return;
-    }
-
-    const headers = [
-      "Outlet",
-      "Date",
-      "Footfall",
-      "Drivers",
-      "Restaurant Revenue",
-      "Room Revenue",
-      "Other Revenue",
-      "Marketing Expense",
-      "Total Revenue",
-      "Remarks",
-      "Created By",
-      "Role",
-    ];
-
-    const rows = visibleEntries.map((e) => [
-      e.outlet,
-      e.date,
-      e.footfall,
-      e.drivers,
-      e.restaurantRevenue,
-      e.roomRevenue,
-      e.otherRevenue,
-      e.marketingExpense,
-      e.totalRevenue,
-      e.remarks || "",
-      e.createdBy || "",
-      e.role || "",
-    ]);
-
-    const csvContent =
-      [headers, ...rows]
-        .map((row) =>
-          row
-            .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
-            .join(",")
-        )
+          return `${e.outlet},${e.date},${e.footfall},${e.driverCount},${e.dineInRevenue},${e.parcelRevenue},${e.roomRevenue},${e.otherRevenue},${e.marketingSpend},${totalRev},${cpv}`;
+        })
         .join("\n");
 
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([csv], { type: "text/csv" });
 
     const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "mannat_entries.csv");
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = "mannat-footfall-revenue-report.csv";
     link.click();
-    document.body.removeChild(link);
   };
 
-  // =========================
-  // RESET DATA
-  // =========================
-  const handleResetData = () => {
-    const ok = window.confirm(
-      "This will delete all saved entries from local storage. Continue?"
-    );
+  /* =========================
+     RESET ALL DATA
+  ========================= */
+  const resetAllData = () => {
+    const ok = window.confirm("Are you sure you want to reset all data?");
     if (!ok) return;
 
-    localStorage.removeItem(STORAGE_KEYS.entries);
+    localStorage.removeItem("entries");
     setEntries([]);
-    resetForm();
   };
 
-  // =========================
-  // LOGIN SCREEN
-  // =========================
-  if (!currentUser) {
+  /* =========================
+     LOGIN PAGE
+  ========================= */
+  if (!isLoggedIn) {
     return (
-      <div style={styles.loginPage}>
-        <div style={styles.loginCard}>
-          <h1 style={{ marginBottom: 20 }}>Mannat Group Login</h1>
+      <div
+        className="d-flex align-items-center justify-content-center"
+        style={{
+          minHeight: "100vh",
+          background:
+            "linear-gradient(135deg, #0d6efd 0%, #0b5ed7 40%, #198754 100%)",
+          padding: "20px",
+        }}
+      >
+        <div
+          className="card shadow-lg border-0"
+          style={{ maxWidth: "450px", width: "100%", borderRadius: "20px" }}
+        >
+          <div className="card-body p-4 p-md-5">
+            <div className="text-center mb-4">
+              <h2 className="fw-bold mb-2">🏨 Mannat Group Hotels</h2>
+              <p className="text-muted mb-0">
+                Daily Footfall & Revenue Intelligence System
+              </p>
+            </div>
 
-          <form onSubmit={handleLogin}>
-            <input
-              style={styles.input}
-              type="text"
-              placeholder="Username"
-              value={loginForm.username}
-              onChange={(e) =>
-                setLoginForm((prev) => ({
-                  ...prev,
-                  username: e.target.value,
-                }))
-              }
-            />
+            <h4 className="text-center mb-4">Login</h4>
 
-            <input
-              style={styles.input}
-              type="password"
-              placeholder="Password"
-              value={loginForm.password}
-              onChange={(e) =>
-                setLoginForm((prev) => ({
-                  ...prev,
-                  password: e.target.value,
-                }))
-              }
-            />
+            <div className="mb-3">
+              <label className="form-label fw-semibold">Login As</label>
+              <select
+                className="form-select"
+                value={loginForm.role}
+                onChange={(e) =>
+                  setLoginForm({ ...loginForm, role: e.target.value })
+                }
+              >
+                <option value="admin">Admin</option>
+                <option value="staff">Staff</option>
+              </select>
+            </div>
 
-            <button style={styles.primaryButton} type="submit">
+            <div className="mb-3">
+              <label className="form-label fw-semibold">Email</label>
+              <input
+                type="email"
+                className="form-control"
+                placeholder="Enter email"
+                value={loginForm.email}
+                onChange={(e) =>
+                  setLoginForm({ ...loginForm, email: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label fw-semibold">Password</label>
+              <input
+                type="password"
+                className="form-control"
+                placeholder="Enter password"
+                value={loginForm.password}
+                onChange={(e) =>
+                  setLoginForm({ ...loginForm, password: e.target.value })
+                }
+              />
+            </div>
+
+            {loginError && (
+              <div className="alert alert-danger py-2">{loginError}</div>
+            )}
+
+            <button className="btn btn-primary w-100 mb-3" onClick={handleLogin}>
               Login
             </button>
-          </form>
 
-          {loginError && (
-            <p style={{ color: "#dc2626", marginTop: 14 }}>{loginError}</p>
-          )}
-
-          <div style={{ marginTop: 20, fontSize: 14, color: "#444" }}>
-            <p><strong>Demo Admin:</strong> admin / 1234</p>
-            <p><strong>Demo Staff:</strong> murthal / 1234</p>
-            <p><strong>Demo Staff:</strong> karnal / 1234</p>
-            <p><strong>Demo Staff:</strong> jalandhar / 1234</p>
+            <div className="bg-light rounded p-3 small">
+              <div className="fw-bold mb-2">Demo Credentials</div>
+              <div>
+                <strong>Admin:</strong> admin@mannat.com / 123456
+              </div>
+              <div>
+                <strong>Staff:</strong> staff@mannat.com / 123456
+              </div>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // =========================
-  // MAIN APP
-  // =========================
+  /* =========================
+     MAIN DASHBOARD
+  ========================= */
   return (
-    <div style={styles.page}>
-      {/* HEADER */}
-      <div style={styles.topbar}>
-        <div style={{ fontWeight: 800, fontSize: 28 }}>🏨 Mannat Group Hotels Dashboard</div>
-        <div style={styles.topbarRight}>
-          <div style={styles.userBadge}>
-            {currentUser.role === "admin"
-              ? "Admin"
-              : `Staff - ${currentUser.outlet}`}
-          </div>
-          <button style={styles.resetBtn} onClick={handleResetData}>
-            Reset Data
-          </button>
-          <button style={styles.logoutBtn} onClick={handleLogout}>
-            Logout
-          </button>
-        </div>
-      </div>
+    <div className="bg-light min-vh-100">
+      {/* NAVBAR */}
+      <nav className="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div className="container">
+          <span className="navbar-brand fw-bold">
+            🏨 Mannat Group Hotels Dashboard
+          </span>
 
-      <div style={styles.container}>
-        {/* TITLE */}
-        <div style={styles.heroCard}>
-          <h1 style={styles.mainTitle}>Mannat Group Hotels</h1>
-          <p style={styles.subTitle}>
-            Daily Footfall, Driver Visits & Revenue Intelligence Dashboard
+          <div className="d-flex align-items-center gap-2 flex-wrap">
+            <span className="badge bg-success fs-6">
+              {currentUser?.role?.toUpperCase()}
+            </span>
+            <span className="text-white small">{currentUser?.email}</span>
+            <button
+              className="btn btn-outline-light btn-sm"
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="container py-4">
+        {/* HEADER */}
+        <div className="mb-4">
+          <h2 className="fw-bold mb-1">
+            Daily Footfall & Revenue Intelligence Dashboard
+          </h2>
+          <p className="text-muted mb-0">
+            Track outlet performance, footfall, revenue, driver visits and
+            marketing spend across locations.
           </p>
         </div>
 
         {/* FILTERS */}
-        <div style={styles.card}>
-          <h2 style={styles.sectionTitle}>Filters</h2>
-          <div style={styles.filterGrid}>
-            <div>
-              <label style={styles.label}>Outlet</label>
-              <select
-                style={styles.input}
-                value={selectedOutlet}
-                onChange={(e) => setSelectedOutlet(e.target.value)}
-                disabled={currentUser.role === "staff"}
-              >
-                {currentUser.role === "admin" && (
-                  <option>All Outlets</option>
-                )}
-                {(currentUser.role === "staff"
-                  ? [currentUser.outlet]
-                  : OUTLETS
-                ).map((outlet) => (
-                  <option key={outlet} value={outlet}>
-                    {outlet}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={styles.label}>From Date</label>
-              <input
-                style={styles.input}
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label style={styles.label}>To Date</label>
-              <input
-                style={styles.input}
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* KPI CARDS */}
-        <div style={styles.kpiGrid}>
-          <KpiCard title="Total Revenue" value={formatCurrency(summary.totalRevenue)} />
-          <KpiCard title="Total Footfall" value={summary.totalFootfall} />
-          <KpiCard title="Total Driver Visits" value={summary.totalDrivers} />
-          <KpiCard
-            title="Avg Revenue / Customer"
-            value={`₹${summary.avgRevenuePerCustomer.toFixed(2)}`}
-          />
-          <KpiCard
-            title="Total Marketing Expense"
-            value={formatCurrency(summary.totalMarketing)}
-          />
-          <KpiCard title="Total Entries" value={summary.totalEntries} />
-        </div>
-
-        {/* TOP OUTLET */}
-        <div style={styles.card}>
-          <h2 style={{ ...styles.sectionTitle, textAlign: "center" }}>
-            🏆 Top Performing Outlet
-          </h2>
-          {topOutlet ? (
-            <div style={{ textAlign: "center" }}>
-              <h3 style={{ margin: 0, fontSize: 28 }}>{topOutlet.outlet}</h3>
-              <p style={{ marginTop: 10, fontSize: 20, fontWeight: 700 }}>
-                Revenue: {formatCurrency(topOutlet.revenue)}
-              </p>
-            </div>
-          ) : (
-            <p style={styles.noData}>No data available</p>
-          )}
-        </div>
-
-        {/* ENTRY FORM */}
-        <div style={styles.card}>
-          <h2 style={styles.sectionTitle}>
-            {isEditMode ? "Edit Entry" : "Add Daily Entry"}
-          </h2>
-
-          <form onSubmit={handleSubmit}>
-            <div style={styles.formGrid}>
-              <div>
-                <label style={styles.label}>Outlet</label>
+        <div className="card border-0 shadow-sm mb-4">
+          <div className="card-body">
+            <div className="row g-3 align-items-end">
+              <div className="col-md-4">
+                <label className="form-label fw-semibold">Filter by Outlet</label>
                 <select
-                  style={styles.input}
-                  name="outlet"
-                  value={form.outlet}
-                  onChange={handleFormChange}
-                  disabled={currentUser.role === "staff"}
+                  className="form-select"
+                  value={filterOutlet}
+                  onChange={(e) => setFilterOutlet(e.target.value)}
                 >
-                  <option value="">Select Outlet</option>
-                  {(currentUser.role === "staff"
-                    ? [currentUser.outlet]
-                    : OUTLETS
-                  ).map((outlet) => (
+                  <option value="All">All Outlets</option>
+                  {OUTLETS.map((outlet) => (
                     <option key={outlet} value={outlet}>
                       {outlet}
                     </option>
@@ -728,584 +600,516 @@ export default function App() {
                 </select>
               </div>
 
-              <div>
-                <label style={styles.label}>Date</label>
-                <input
-                  style={styles.input}
-                  type="date"
-                  name="date"
-                  value={form.date}
-                  onChange={handleFormChange}
-                />
-              </div>
-
-              <div>
-                <label style={styles.label}>Footfall</label>
-                <input
-                  style={styles.input}
-                  type="number"
-                  name="footfall"
-                  value={form.footfall}
-                  onChange={handleFormChange}
-                  placeholder="Footfall"
-                />
-              </div>
-
-              <div>
-                <label style={styles.label}>Driver Visits</label>
-                <input
-                  style={styles.input}
-                  type="number"
-                  name="drivers"
-                  value={form.drivers}
-                  onChange={handleFormChange}
-                  placeholder="Driver Visits"
-                />
-              </div>
-
-              <div>
-                <label style={styles.label}>Restaurant Revenue</label>
-                <input
-                  style={styles.input}
-                  type="number"
-                  name="restaurantRevenue"
-                  value={form.restaurantRevenue}
-                  onChange={handleFormChange}
-                  placeholder="Restaurant Revenue"
-                />
-              </div>
-
-              <div>
-                <label style={styles.label}>Room Revenue</label>
-                <input
-                  style={styles.input}
-                  type="number"
-                  name="roomRevenue"
-                  value={form.roomRevenue}
-                  onChange={handleFormChange}
-                  placeholder="Room Revenue"
-                />
-              </div>
-
-              <div>
-                <label style={styles.label}>Other Revenue</label>
-                <input
-                  style={styles.input}
-                  type="number"
-                  name="otherRevenue"
-                  value={form.otherRevenue}
-                  onChange={handleFormChange}
-                  placeholder="Other Revenue"
-                />
-              </div>
-
-              <div>
-                <label style={styles.label}>Marketing Expense</label>
-                <input
-                  style={styles.input}
-                  type="number"
-                  name="marketingExpense"
-                  value={form.marketingExpense}
-                  onChange={handleFormChange}
-                  placeholder="Marketing Expense"
-                />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <label style={styles.label}>Remarks</label>
-              <input
-                style={styles.input}
-                type="text"
-                name="remarks"
-                value={form.remarks}
-                onChange={handleFormChange}
-                placeholder="Remarks (optional)"
-              />
-            </div>
-
-            {formError && (
-              <p style={{ color: "#dc2626", marginTop: 14 }}>{formError}</p>
-            )}
-
-            <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
-              <button style={styles.primaryButton} type="submit">
-                {isEditMode ? "Update Entry" : "Save Entry"}
-              </button>
-
-              {isEditMode && (
-                <button
-                  type="button"
-                  style={styles.cancelBtn}
-                  onClick={resetForm}
+              <div className="col-md-4">
+                <label className="form-label fw-semibold">Date Range</label>
+                <select
+                  className="form-select"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
                 >
-                  Cancel Edit
+                  <option value="All">All Time</option>
+                  <option value="Today">Today</option>
+                  <option value="Last7Days">Last 7 Days</option>
+                  <option value="Last30Days">Last 30 Days</option>
+                </select>
+              </div>
+
+              <div className="col-md-4 d-flex gap-2">
+                <button className="btn btn-success w-100" onClick={exportCSV}>
+                  Export CSV
                 </button>
-              )}
+                <button className="btn btn-danger w-100" onClick={resetAllData}>
+                  Reset Data
+                </button>
+              </div>
             </div>
-          </form>
+          </div>
+        </div>
+
+        {/* THRESHOLDS INFO */}
+        <div className="alert alert-info mb-4">
+          <strong>Current Alert Thresholds:</strong>{" "}
+          Footfall &lt; {FOOTFALL_THRESHOLD} | Cost / Visitor &gt; ₹
+          {COST_PER_VISITOR_THRESHOLD} | Revenue &lt; ₹{LOW_REVENUE_THRESHOLD}
+        </div>
+
+        {/* KPI CARDS */}
+        <div className="row g-3 mb-4">
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <div className="text-muted small">Total Revenue</div>
+                <h3 className="fw-bold mb-0">₹{totalRevenue}</h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <div className="text-muted small">Total Footfall</div>
+                <h3 className="fw-bold mb-0">{totalFootfall}</h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <div className="text-muted small">Marketing Spend</div>
+                <h3 className="fw-bold mb-0">₹{totalMarketingSpend}</h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <div className="text-muted small">Avg Revenue / Customer</div>
+                <h3 className="fw-bold mb-0">₹{avgRevenuePerCustomer}</h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <div className="text-muted small">Cost / Visitor</div>
+                <h3 className="fw-bold mb-0">₹{costPerVisitor}</h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <div className="text-muted small">Driver Visits</div>
+                <h3 className="fw-bold mb-0">{totalDrivers}</h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <div className="text-muted small">Total Entries</div>
+                <h3 className="fw-bold mb-0">{totalEntries}</h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                <div className="text-muted small">Top Outlet</div>
+                <h5 className="fw-bold mb-0">
+                  {topOutlet ? topOutlet.outlet : "-"}
+                </h5>
+                {topOutlet && (
+                  <small className="text-muted">
+                    Revenue ₹{topOutlet.totalRevenue}
+                  </small>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ALERTS */}
-        <div style={styles.card}>
-          <h2 style={styles.sectionTitle}>⚠ Alerts</h2>
-          {alerts.length ? (
-            <div style={{ display: "grid", gap: 12 }}>
-              {alerts.map((a, idx) => (
-                <div key={idx} style={styles.alertBox}>
-                  <div style={{ fontWeight: 800, color: "#b91c1c" }}>{a.type}</div>
-                  <div style={{ marginTop: 6 }}>{a.message}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p style={styles.noData}>No alerts found</p>
-          )}
+        <div className="card border-0 shadow-sm mb-4">
+          <div className="card-body">
+            <h4 className="fw-bold mb-3">Alerts & Exceptions</h4>
+
+            {alerts.length === 0 ? (
+              <div className="alert alert-success mb-0">
+                No alerts. All outlets are performing within thresholds.
+              </div>
+            ) : (
+              <div className="d-flex flex-column gap-2">
+                {alerts.map((alert, idx) => (
+                  <div key={idx} className="alert alert-warning mb-0">
+                    {alert}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* REVENUE ANALYTICS */}
-        <div style={styles.card}>
-          <h2 style={styles.sectionTitle}>Revenue Analytics</h2>
-          {outletPerformance.length ? (
-            <div style={{ display: "grid", gap: 16 }}>
-              {outletPerformance.map((item) => {
-                const maxRevenue = Math.max(
-                  ...outletPerformance.map((x) => x.revenue || 0),
-                  1
-                );
-                const width = `${(item.revenue / maxRevenue) * 100}%`;
+        <div className="row g-4">
+          {/* LEFT COLUMN */}
+          <div className="col-lg-5">
+            {/* ENTRY FORM */}
+            <div className="card border-0 shadow-sm mb-4">
+              <div className="card-body">
+                <h4 className="fw-bold mb-3">Add Daily Entry</h4>
 
-                return (
-                  <div key={item.outlet}>
-                    <div style={styles.analyticsRow}>
-                      <div style={styles.analyticsOutlet}>{item.outlet}</div>
-                      <div style={styles.analyticsBarWrap}>
-                        <div style={{ ...styles.analyticsBar, width }}>
-                          {formatCurrencyShort(item.revenue)}
-                        </div>
-                      </div>
+                <div className="mb-3">
+                  <label className="form-label fw-semibold">Outlet</label>
+                  <select
+                    className="form-select"
+                    value={form.outlet}
+                    onChange={(e) =>
+                      setForm({ ...form, outlet: e.target.value })
+                    }
+                  >
+                    <option value="">Select Outlet</option>
+                    {OUTLETS.map((outlet) => (
+                      <option key={outlet} value={outlet}>
+                        {outlet}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label fw-semibold">Date</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={form.date}
+                    onChange={(e) =>
+                      setForm({ ...form, date: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">Footfall</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Enter footfall"
+                      value={form.footfall}
+                      onChange={(e) =>
+                        setForm({ ...form, footfall: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">
+                      Driver Count
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Enter driver visits"
+                      value={form.driverCount}
+                      onChange={(e) =>
+                        setForm({ ...form, driverCount: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">
+                      Dine-in Revenue
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Enter dine-in revenue"
+                      value={form.dineInRevenue}
+                      onChange={(e) =>
+                        setForm({ ...form, dineInRevenue: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">
+                      Parcel Revenue
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Enter parcel revenue"
+                      value={form.parcelRevenue}
+                      onChange={(e) =>
+                        setForm({ ...form, parcelRevenue: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">
+                      Room Revenue
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Enter room revenue"
+                      value={form.roomRevenue}
+                      onChange={(e) =>
+                        setForm({ ...form, roomRevenue: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">
+                      Other Revenue
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Enter other revenue"
+                      value={form.otherRevenue}
+                      onChange={(e) =>
+                        setForm({ ...form, otherRevenue: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="col-12">
+                    <label className="form-label fw-semibold">
+                      Marketing Spend
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Enter marketing spend"
+                      value={form.marketingSpend}
+                      onChange={(e) =>
+                        setForm({ ...form, marketingSpend: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <button className="btn btn-primary mt-4 w-100" onClick={addEntry}>
+                  Save Entry
+                </button>
+              </div>
+            </div>
+
+            {/* TOP / LOWEST OUTLET */}
+            <div className="card border-0 shadow-sm">
+              <div className="card-body">
+                <h4 className="fw-bold mb-3">Outlet Performance Snapshot</h4>
+
+                <div className="row g-3">
+                  <div className="col-12">
+                    <div className="p-3 rounded bg-success-subtle border">
+                      <div className="fw-bold">🏆 Top Performing Outlet</div>
+                      {topOutlet ? (
+                        <>
+                          <div className="mt-2 fs-5 fw-semibold">
+                            {topOutlet.outlet}
+                          </div>
+                          <div>Revenue: ₹{topOutlet.totalRevenue}</div>
+                          <div>Footfall: {topOutlet.footfall}</div>
+                        </>
+                      ) : (
+                        <div className="text-muted mt-2">No data available</div>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p style={styles.noData}>No analytics data available</p>
-          )}
-        </div>
 
-        {/* OUTLET PERFORMANCE */}
-        <div style={styles.card}>
-          <h2 style={styles.sectionTitle}>Outlet Performance</h2>
-          {outletPerformance.length ? (
-            <div style={styles.performanceGrid}>
-              {outletPerformance.map((item) => {
-                const avg =
-                  item.footfall > 0 ? item.revenue / item.footfall : 0;
-
-                return (
-                  <div key={item.outlet} style={styles.performanceCard}>
-                    <h3 style={{ marginTop: 0 }}>{item.outlet}</h3>
-                    <p><strong>Revenue:</strong> {formatCurrency(item.revenue)}</p>
-                    <p><strong>Footfall:</strong> {item.footfall}</p>
-                    <p><strong>Drivers:</strong> {item.drivers}</p>
-                    <p><strong>Marketing:</strong> {formatCurrency(item.marketing)}</p>
-                    <p><strong>Revenue / Customer:</strong> ₹{avg.toFixed(2)}</p>
+                  <div className="col-12">
+                    <div className="p-3 rounded bg-danger-subtle border">
+                      <div className="fw-bold">📉 Lowest Performing Outlet</div>
+                      {lowestOutlet ? (
+                        <>
+                          <div className="mt-2 fs-5 fw-semibold">
+                            {lowestOutlet.outlet}
+                          </div>
+                          <div>Revenue: ₹{lowestOutlet.totalRevenue}</div>
+                          <div>Footfall: {lowestOutlet.footfall}</div>
+                        </>
+                      ) : (
+                        <div className="text-muted mt-2">No data available</div>
+                      )}
+                    </div>
                   </div>
-                );
-              })}
+                </div>
+              </div>
             </div>
-          ) : (
-            <p style={styles.noData}>No outlet performance data</p>
-          )}
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="col-lg-7">
+            {/* OUTLET REVENUE CHART */}
+            <div className="card border-0 shadow-sm mb-4">
+              <div className="card-body">
+                <h4 className="fw-bold mb-3">Outlet Revenue Comparison</h4>
+
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={outletChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="outlet" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="revenue" fill="#198754" name="Revenue" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* TREND CHART */}
+            <div className="card border-0 shadow-sm mb-4">
+              <div className="card-body">
+                <h4 className="fw-bold mb-3">Revenue / Footfall Trend</h4>
+
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart data={dailyChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#0d6efd"
+                      strokeWidth={3}
+                      name="Revenue"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="footfall"
+                      stroke="#198754"
+                      strokeWidth={3}
+                      name="Footfall"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* OUTLET SUMMARY TABLE */}
+            <div className="card border-0 shadow-sm">
+              <div className="card-body">
+                <h4 className="fw-bold mb-3">Outlet-wise Performance Summary</h4>
+
+                <div className="table-responsive">
+                  <table className="table table-bordered align-middle">
+                    <thead className="table-dark">
+                      <tr>
+                        <th>Outlet</th>
+                        <th>Footfall</th>
+                        <th>Drivers</th>
+                        <th>Total Revenue</th>
+                        <th>Marketing</th>
+                        <th>Avg Rev / Customer</th>
+                        <th>Cost / Visitor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {outletSummary.length > 0 ? (
+                        outletSummary.map((item, index) => (
+                          <tr key={index}>
+                            <td>{item.outlet}</td>
+                            <td>{item.footfall}</td>
+                            <td>{item.driverCount}</td>
+                            <td>₹{item.totalRevenue}</td>
+                            <td>₹{item.marketingSpend}</td>
+                            <td>₹{item.avgRevenuePerCustomer}</td>
+                            <td>₹{item.costPerVisitor}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="7" className="text-center">
+                            No data available
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* EXPORT */}
-        <div style={{ marginBottom: 20 }}>
-          <button style={styles.exportBtn} onClick={handleExportCSV}>
-            Export CSV
-          </button>
-        </div>
+        {/* DETAILED ENTRIES TABLE */}
+        <div className="card border-0 shadow-sm mt-4">
+          <div className="card-body">
+            <h4 className="fw-bold mb-3">All Daily Entries</h4>
 
-        {/* TABLE */}
-        <div style={styles.card}>
-          <h2 style={styles.sectionTitle}>Entries Table</h2>
-
-          {visibleEntries.length ? (
-            <div style={{ overflowX: "auto" }}>
-              <table style={styles.table}>
-                <thead>
+            <div className="table-responsive">
+              <table className="table table-bordered table-striped align-middle">
+                <thead className="table-dark">
                   <tr>
-                    <th style={styles.th}>Outlet</th>
-                    <th style={styles.th}>Date</th>
-                    <th style={styles.th}>Footfall</th>
-                    <th style={styles.th}>Drivers</th>
-                    <th style={styles.th}>Restaurant</th>
-                    <th style={styles.th}>Room</th>
-                    <th style={styles.th}>Other</th>
-                    <th style={styles.th}>Marketing</th>
-                    <th style={styles.th}>Total Revenue</th>
-                    <th style={styles.th}>Remarks</th>
-                    <th style={styles.th}>Created By</th>
-                    <th style={styles.th}>Action</th>
+                    <th>Outlet</th>
+                    <th>Date</th>
+                    <th>Footfall</th>
+                    <th>Drivers</th>
+                    <th>Dine-in</th>
+                    <th>Parcel</th>
+                    <th>Room</th>
+                    <th>Other</th>
+                    <th>Marketing</th>
+                    <th>Total Revenue</th>
+                    <th>Cost / Visitor</th>
+                    {currentUser?.role === "admin" && <th>Action</th>}
                   </tr>
                 </thead>
+
                 <tbody>
-                  {visibleEntries.map((entry) => (
-                    <tr key={entry.id}>
-                      <td style={styles.td}>{entry.outlet}</td>
-                      <td style={styles.td}>{formatDateDisplay(entry.date)}</td>
-                      <td style={styles.td}>{entry.footfall}</td>
-                      <td style={styles.td}>{entry.drivers}</td>
-                      <td style={styles.td}>{formatCurrencyShort(entry.restaurantRevenue)}</td>
-                      <td style={styles.td}>{formatCurrencyShort(entry.roomRevenue)}</td>
-                      <td style={styles.td}>{formatCurrencyShort(entry.otherRevenue)}</td>
-                      <td style={styles.td}>{formatCurrencyShort(entry.marketingExpense)}</td>
-                      <td style={styles.td}>{formatCurrencyShort(entry.totalRevenue)}</td>
-                      <td style={styles.td}>{entry.remarks || "-"}</td>
-                      <td style={styles.td}>{entry.createdBy || "-"}</td>
-                      <td style={styles.td}>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <button
-                            style={styles.editBtn}
-                            onClick={() => handleEdit(entry)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            style={styles.deleteBtn}
-                            onClick={() => handleDelete(entry.id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
+                  {filteredEntries.length > 0 ? (
+                    filteredEntries.map((item) => {
+                      const totalRev = getTotalRevenue(item);
+                      const cpv =
+                        item.footfall > 0
+                          ? (item.marketingSpend / item.footfall).toFixed(2)
+                          : "0.00";
+
+                      return (
+                        <tr key={item.id}>
+                          <td>{item.outlet}</td>
+                          <td>{item.date}</td>
+                          <td>{item.footfall}</td>
+                          <td>{item.driverCount}</td>
+                          <td>₹{item.dineInRevenue}</td>
+                          <td>₹{item.parcelRevenue}</td>
+                          <td>₹{item.roomRevenue}</td>
+                          <td>₹{item.otherRevenue}</td>
+                          <td>₹{item.marketingSpend}</td>
+                          <td>₹{totalRev}</td>
+                          <td>₹{cpv}</td>
+                          {currentUser?.role === "admin" && (
+                            <td>
+                              <button
+                                className="btn btn-danger btn-sm"
+                                onClick={() => deleteEntry(item.id)}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={currentUser?.role === "admin" ? 12 : 11}
+                        className="text-center"
+                      >
+                        No entries found
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
-          ) : (
-            <p style={styles.noData}>No entries available</p>
-          )}
+
+            {currentUser?.role === "staff" && (
+              <div className="alert alert-info mt-3 mb-0">
+                Staff view: You can add and view entries. Delete action is
+                restricted to Admin.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// =========================
-// SMALL COMPONENT
-// =========================
-function KpiCard({ title, value }) {
-  return (
-    <div style={styles.kpiCard}>
-      <div style={styles.kpiTitle}>{title}</div>
-      <div style={styles.kpiValue}>{value}</div>
-    </div>
-  );
-}
-
-// =========================
-// STYLES
-// =========================
-const styles = {
-  page: {
-    minHeight: "100vh",
-    background: "#f4f4f5",
-    fontFamily: "Arial, sans-serif",
-  },
-
-  container: {
-    maxWidth: 1300,
-    margin: "0 auto",
-    padding: 20,
-  },
-
-  topbar: {
-    background: "#0f172a",
-    color: "white",
-    padding: "18px 24px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 20,
-    flexWrap: "wrap",
-  },
-
-  topbarRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-
-  userBadge: {
-    background: "#1e293b",
-    padding: "10px 14px",
-    borderRadius: 10,
-    fontWeight: 700,
-  },
-
-  heroCard: {
-    background: "white",
-    borderRadius: 16,
-    padding: 28,
-    marginTop: 24,
-    marginBottom: 20,
-    boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
-    textAlign: "center",
-  },
-
-  mainTitle: {
-    margin: 0,
-    fontSize: 42,
-    fontWeight: 800,
-  },
-
-  subTitle: {
-    marginTop: 12,
-    color: "#52525b",
-    fontSize: 20,
-  },
-
-  card: {
-    background: "white",
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 20,
-    boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
-  },
-
-  sectionTitle: {
-    marginTop: 0,
-    marginBottom: 18,
-    fontSize: 32,
-  },
-
-  filterGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 16,
-  },
-
-  formGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 16,
-  },
-
-  label: {
-    display: "block",
-    marginBottom: 8,
-    fontWeight: 700,
-    fontSize: 15,
-  },
-
-  input: {
-    width: "100%",
-    padding: "14px 16px",
-    borderRadius: 12,
-    border: "1px solid #d4d4d8",
-    fontSize: 16,
-    boxSizing: "border-box",
-    outline: "none",
-  },
-
-  primaryButton: {
-    background: "linear-gradient(90deg, #2563eb, #1d4ed8)",
-    color: "white",
-    border: "none",
-    borderRadius: 12,
-    padding: "14px 24px",
-    fontSize: 16,
-    fontWeight: 800,
-    cursor: "pointer",
-    minWidth: 180,
-  },
-
-  cancelBtn: {
-    background: "#e5e7eb",
-    color: "#111827",
-    border: "none",
-    borderRadius: 12,
-    padding: "14px 24px",
-    fontSize: 16,
-    fontWeight: 700,
-    cursor: "pointer",
-    minWidth: 160,
-  },
-
-  resetBtn: {
-    background: "#f59e0b",
-    color: "white",
-    border: "none",
-    borderRadius: 10,
-    padding: "10px 14px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-
-  logoutBtn: {
-    background: "#7f1d1d",
-    color: "white",
-    border: "none",
-    borderRadius: 10,
-    padding: "10px 14px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-
-  kpiGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-    gap: 18,
-    marginBottom: 20,
-  },
-
-  kpiCard: {
-    background: "white",
-    borderRadius: 16,
-    padding: 24,
-    textAlign: "center",
-    boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
-  },
-
-  kpiTitle: {
-    fontSize: 20,
-    fontWeight: 800,
-    marginBottom: 14,
-  },
-
-  kpiValue: {
-    fontSize: 38,
-    fontWeight: 900,
-  },
-
-  alertBox: {
-    borderLeft: "5px solid #dc2626",
-    background: "#fef2f2",
-    borderRadius: 12,
-    padding: 16,
-  },
-
-  analyticsRow: {
-    display: "grid",
-    gridTemplateColumns: "220px 1fr",
-    gap: 16,
-    alignItems: "center",
-  },
-
-  analyticsOutlet: {
-    fontWeight: 800,
-    fontSize: 18,
-  },
-
-  analyticsBarWrap: {
-    background: "#e5e7eb",
-    borderRadius: 999,
-    overflow: "hidden",
-    minHeight: 42,
-  },
-
-  analyticsBar: {
-    minHeight: 42,
-    background: "#0f172a",
-    color: "white",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 800,
-    borderRadius: 999,
-    minWidth: 90,
-  },
-
-  performanceGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: 16,
-  },
-
-  performanceCard: {
-    border: "1px solid #e5e7eb",
-    borderRadius: 14,
-    padding: 18,
-    background: "#fafafa",
-  },
-
-  exportBtn: {
-    background: "#16a34a",
-    color: "white",
-    border: "none",
-    borderRadius: 12,
-    padding: "14px 22px",
-    fontSize: 16,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    minWidth: 1100,
-  },
-
-  th: {
-    background: "#111827",
-    color: "white",
-    padding: 14,
-    textAlign: "left",
-    fontSize: 14,
-  },
-
-  td: {
-    borderBottom: "1px solid #e5e7eb",
-    padding: 14,
-    fontSize: 14,
-    verticalAlign: "top",
-  },
-
-  editBtn: {
-    background: "#2563eb",
-    color: "white",
-    border: "none",
-    borderRadius: 8,
-    padding: "8px 12px",
-    cursor: "pointer",
-    fontWeight: 700,
-  },
-
-  deleteBtn: {
-    background: "#dc2626",
-    color: "white",
-    border: "none",
-    borderRadius: 8,
-    padding: "8px 12px",
-    cursor: "pointer",
-    fontWeight: 700,
-  },
-
-  noData: {
-    color: "#6b7280",
-    fontSize: 16,
-  },
-
-  loginPage: {
-    minHeight: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: "#f4f4f5",
-    padding: 20,
-    fontFamily: "Arial, sans-serif",
-  },
-
-  loginCard: {
-    width: "100%",
-    maxWidth: 460,
-    background: "white",
-    borderRadius: 20,
-    padding: 30,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-  },
-};
+export default App;
