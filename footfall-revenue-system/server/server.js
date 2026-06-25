@@ -1,95 +1,120 @@
-require("dotenv").config();
-const mongoose = require("mongoose");
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
+const path = require("path");
 
 const app = express();
-
+const PORT = 5000;
 
 app.use(cors());
 app.use(express.json());
 
-// Get All Entries
-app.get("/api/entries", (req, res) => {
-  if (!fs.existsSync("data.json")) {
-    return res.json([]);
+const dataFile = path.join(__dirname, "data.json");
+
+// ---------- helper functions ----------
+function readData() {
+  try {
+    const data = fs.readFileSync(dataFile, "utf-8");
+    return JSON.parse(data || "[]");
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeData(data) {
+  fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
+}
+
+// ---------- routes ----------
+
+// Login demo route
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
+
+  if (username === "admin" && password === "1234") {
+    return res.json({
+      success: true,
+      message: "Login successful",
+      user: { username: "admin", role: "admin" },
+    });
   }
 
-  const data = JSON.parse(fs.readFileSync("data.json"));
-  res.json(data);
-});
-
-// Add Entry
-app.post("/api/entries", (req, res) => {
-  let data = [];
-
-  if (fs.existsSync("data.json")) {
-    data = JSON.parse(fs.readFileSync("data.json"));
-  }
-
-  data.push(req.body);
-
-  fs.writeFileSync(
-    "data.json",
-    JSON.stringify(data, null, 2)
-  );
-
-  res.json({
-    success: true,
-    message: "Entry Added Successfully",
+  return res.status(401).json({
+    success: false,
+    message: "Invalid username or password",
   });
 });
 
-// Delete Entry
-app.delete("/api/entries/:id", (req, res) => {
-  let data = [];
+// Get all entries
+app.get("/entries", (req, res) => {
+  const entries = readData();
+  res.json(entries);
+});
 
-  if (fs.existsSync("data.json")) {
-    data = JSON.parse(fs.readFileSync("data.json"));
+// Add entry
+app.post("/entries", (req, res) => {
+  const entries = readData();
+
+  const {
+    outlet,
+    date,
+    footfall,
+    drivers,
+    restaurantRevenue,
+    roomRevenue,
+    otherRevenue,
+    marketingExpense,
+    remarks,
+  } = req.body;
+
+  if (!outlet || !date) {
+    return res.status(400).json({ message: "Outlet and date are required" });
   }
 
-  data.splice(Number(req.params.id), 1);
+  const newEntry = {
+    id: Date.now(),
+    outlet,
+    date,
+    footfall: Number(footfall) || 0,
+    drivers: Number(drivers) || 0,
+    restaurantRevenue: Number(restaurantRevenue) || 0,
+    roomRevenue: Number(roomRevenue) || 0,
+    otherRevenue: Number(otherRevenue) || 0,
+    marketingExpense: Number(marketingExpense) || 0,
+    remarks: remarks || "",
+  };
 
-  fs.writeFileSync(
-    "data.json",
-    JSON.stringify(data, null, 2)
-  );
+  newEntry.totalRevenue =
+    newEntry.restaurantRevenue +
+    newEntry.roomRevenue +
+    newEntry.otherRevenue;
 
-  res.json({
-    success: true,
-    message: "Entry Deleted Successfully",
+  entries.push(newEntry);
+  writeData(entries);
+
+  res.status(201).json({
+    message: "Entry saved successfully",
+    entry: newEntry,
   });
 });
 
-// Update Entry
-app.put("/api/entries/:id", (req, res) => {
-  let data = [];
+// Delete entry
+app.delete("/entries/:id", (req, res) => {
+  const entries = readData();
+  const id = Number(req.params.id);
 
-  if (fs.existsSync("data.json")) {
-    data = JSON.parse(fs.readFileSync("data.json"));
-  }
+  const filtered = entries.filter((entry) => entry.id !== id);
+  writeData(filtered);
 
-  data[Number(req.params.id)] = req.body;
-
-  fs.writeFileSync(
-    "data.json",
-    JSON.stringify(data, null, 2)
-  );
-
-  res.json({
-    success: true,
-    message: "Entry Updated Successfully",
-  });
+  res.json({ message: "Entry deleted successfully" });
 });
 
-// Home Route
-app.get("/", (req, res) => {
-  res.send("Mannat Footfall & Revenue API Running...");
+// Reset all data
+app.delete("/reset", (req, res) => {
+  writeData([]);
+  res.json({ message: "All data reset successfully" });
 });
-
-const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server Running On Port ${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
