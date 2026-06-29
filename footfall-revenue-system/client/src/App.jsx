@@ -1,4 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
+import "./firebase";
+import { db } from "./firebase";
+
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
 import {
   BarChart,
   Bar,
@@ -118,6 +128,20 @@ function App() {
   useEffect(() => {
     localStorage.setItem("entries", JSON.stringify(entries));
   }, [entries]);
+  useEffect(() => {
+  const fetchEntries = async () => {
+    const snapshot = await getDocs(collection(db, "footfall"));
+
+    const data = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    setEntries(data);
+  };
+
+  fetchEntries();
+}, []);
 
   useEffect(() => {
     localStorage.setItem("isLoggedIn", isLoggedIn);
@@ -212,7 +236,7 @@ function App() {
   /* =========================
      ADD ENTRY
   ========================= */
-  const addEntry = () => {
+  const addEntry = async () => {
     if (
       !form.outlet ||
       !form.date ||
@@ -240,7 +264,7 @@ function App() {
       otherRevenue: Number(form.otherRevenue),
       marketingSpend: Number(form.marketingSpend),
     };
-
+    await addDoc(collection(db, "footfall"), newEntry);
     setEntries([newEntry, ...entries]);
 
     setForm({
