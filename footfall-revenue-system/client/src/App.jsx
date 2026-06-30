@@ -1,4 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
+import "./firebase";
+import {db} from "./firebase"
+
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
 import {
   BarChart,
   Bar,
@@ -116,8 +127,17 @@ function App() {
      LOCAL STORAGE
   ========================= */
   useEffect(() => {
-    localStorage.setItem("entries", JSON.stringify(entries));
-  }, [entries]);
+  const unsubscribe = onSnapshot(collection(db, "footfall"), (snapshot) => {
+    const data = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    setEntries(data);
+  });
+
+  return () => unsubscribe();
+}, []);
 
   useEffect(() => {
     localStorage.setItem("isLoggedIn", isLoggedIn);
@@ -212,24 +232,24 @@ function App() {
   /* =========================
      ADD ENTRY
   ========================= */
-  const addEntry = () => {
-    if (
-      !form.outlet ||
-      !form.date ||
-      form.footfall === "" ||
-      form.driverCount === "" ||
-      form.dineInRevenue === "" ||
-      form.parcelRevenue === "" ||
-      form.roomRevenue === "" ||
-      form.otherRevenue === "" ||
-      form.marketingSpend === ""
-    ) {
-      alert("Please fill all fields");
-      return;
-    }
+  const addEntry = async () => {
+  if (
+    !form.outlet ||
+    !form.date ||
+    form.footfall === "" ||
+    form.driverCount === "" ||
+    form.dineInRevenue === "" ||
+    form.parcelRevenue === "" ||
+    form.roomRevenue === "" ||
+    form.otherRevenue === "" ||
+    form.marketingSpend === ""
+  ) {
+    alert("Please fill all fields");
+    return;
+  }
 
-    const newEntry = {
-      id: Date.now(),
+  try {
+    await addDoc(collection(db, "footfall"), {
       outlet: form.outlet,
       date: form.date,
       footfall: Number(form.footfall),
@@ -239,9 +259,10 @@ function App() {
       roomRevenue: Number(form.roomRevenue),
       otherRevenue: Number(form.otherRevenue),
       marketingSpend: Number(form.marketingSpend),
-    };
+      createdAt: new Date(),
+    });
 
-    setEntries([newEntry, ...entries]);
+    alert("Entry Saved Successfully!");
 
     setForm({
       outlet: "",
@@ -254,16 +275,29 @@ function App() {
       otherRevenue: "",
       marketingSpend: "",
     });
-  };
+
+  } catch (error) {
+    console.error(error);
+    alert("Failed to save entry");
+  }
+};
 
   /* =========================
      DELETE ENTRY
   ========================= */
-  const deleteEntry = (id) => {
-    const ok = window.confirm("Delete this entry?");
-    if (!ok) return;
-    setEntries(entries.filter((e) => e.id !== id));
-  };
+  const deleteEntry = async (id) => {
+  const ok = window.confirm("Delete this entry?");
+  if (!ok) return;
+
+  try {
+    await deleteDoc(doc(db, "footfall", id));
+
+    alert("Entry Deleted Successfully!");
+  } catch (error) {
+    console.error(error);
+    alert("Failed to delete entry");
+  }
+};
 
   /* =========================
      KPI CALCULATIONS
